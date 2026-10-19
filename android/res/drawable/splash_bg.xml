@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch screen: the icon's violet sky with the lotus in the middle, matching the web splash. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#4A348C" android:endColor="#16183A" />
+        </shape>
+    </item>
+    <item android:gravity="center" android:bottom="96dp">
+        <bitmap android:src="@drawable/splash_logo" android:gravity="center" />
+    </item>
+</layer-list>

@@ -1,0 +1,19 @@
+# Raw downloads and generated text (about 1.1 GB), rebuilt by tools/
+vtt/
+text/
+zips/
+download/
+by-category/
+
+# Build output: the APK is published as a GitHub Release, not committed
+android/build/
+android/out/
+
+# Signing keys never go on GitHub
+*.keystore
+*.jks
+
+__pycache__/
+
+# Private project notes (kept on this PC only)
+NOTES.md
