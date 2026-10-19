@@ -1,0 +1,17 @@
+{
+  "name": "Little Lotus",
+  "short_name": "Little Lotus",
+  "description": "Quizzes and printable worksheets built from Shri Mataji Nirmala Devi's captioned talks, for every age.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#2A2160",
+  "theme_color": "#2A2160",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
