@@ -195,9 +195,15 @@ def finds(text, regexes):
     return {k: r.findall(text) for k, r in regexes.items() if r.search(text)}
 
 
+# 1970-01-01 is the Unix epoch: a placeholder some uploads carry when the real
+# date is unknown, not a date she gave a talk.
+EPOCH = re.compile(r"\s*\(1970-01-01\)|1970-01-01\s*")
+
+
 def parse_date(title):
     m = re.search(r"\b((?:19|20)\d\d)[-. ]?(\d\d)[-. ]?(\d\d)\b", title)
-    return f"{m[1]}-{m[2]}-{m[3]}" if m else ""
+    date = f"{m[1]}-{m[2]}-{m[3]}" if m else ""
+    return "" if date == "1970-01-01" else date
 
 
 # ------------------------------------------------------------- caption parse
@@ -345,6 +351,7 @@ for vid in sorted(set(titles) | set(ORIGINAL)):
     chakras = sorted((k for k, n in mentions.items() if n >= CHAKRA_MIN_MENTIONS or CHAKRA_RE[k].search(title)),
                      key=lambda k: -mentions.get(k, 0))
     date = parse_date(title)
+    title = EPOCH.sub("", title).strip() or title
     talks[vid] = {"title": title, "date": date, "channel": channel, "pujas": pujas, "events": events,
                   "chakras": chakras, "chakra_mentions": mentions, "excluded": excluded,
                   "language": orig or "en", "langs": [orig] * bool(orig) + ["en"] * bool(cue_list),

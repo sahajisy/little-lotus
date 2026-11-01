@@ -500,7 +500,7 @@
       list.replaceChildren(
         el("p", { class: "muted nums" }, `${rows.length.toLocaleString()} talks` + (rows.length > shown.length ? ` · showing first ${shown.length}, search to narrow` : "")),
         ...shown.map(t => el("a", { class: "talk", href: `#/talk/${t.id}` },
-          el("span", { class: "date" }, t.date || "—"),
+          el("span", { class: "date" }, t.date || "Date unknown"),
           el("span", {}, el("span", { class: "t" }, t.title), el("br"), el("span", { class: "tags" }, talkTags(t))),
           el("span", { class: "muted", "aria-hidden": "true" }, "›"))));
     };
@@ -545,7 +545,7 @@
       : `This is the ${{ en: "English", hi: "Hindi", mr: "Marathi" }[lang]} translation from the caption file. Shri Mataji gave this talk in ${{ en: "English", hi: "Hindi", mr: "Marathi" }[t.langs[0]]}; choose ${LANG_LABEL[t.langs[0]]} for her own words.`;
     main.replaceChildren(
       el("section", { class: "intro" },
-        el("p", { class: "label" }, [niceDate(t.date), talkTags(t)].filter(Boolean).join(" · ")),
+        el("p", { class: "label" }, [niceDate(t.date) || "Date unknown", talkTags(t)].filter(Boolean).join(" · ")),
         el("h1", { style: "font-size:clamp(1.5rem,4vw,2.1rem)" }, t.title),
         el("div", { class: "row" },
           el("a", { class: "btn accent small", href: ytLink(id, at), "data-ext": "" }, "▶ Watch on YouTube"),
