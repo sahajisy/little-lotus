@@ -27,7 +27,7 @@
   };
 
   /* ---------------------------------------------------------------- utils */
-  const APP_VERSION = "1.0";
+  const APP_VERSION = "1.1";
   const $ = (sel, root = document) => root.querySelector(sel);
   // WebVTT character references (e.g. &nbsp;) are shown as the characters they stand for.
   const VTT_REFS = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&nbsp;": "\u00a0", "&lrm;": "\u200e", "&rlm;": "\u200f" };
