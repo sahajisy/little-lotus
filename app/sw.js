@@ -1,8 +1,8 @@
 // Offline support for the web app: the app shell and question bank are cached on
 // first visit; each talk's captions are cached the first time it is opened.
-const VERSION = "lotus-v4";
+const VERSION = "lotus-v5";
 const SHELL = [
-  "./", "index.html", "style.css", "app.js", "print.js", "qr.js", "data.js",
+  "./", "index.html", "style.css", "app.js", "print.js", "group.js", "qr.js", "data.js",
   "manifest.webmanifest", "fonts/fonts.css", "icons/icon-192.png", "icons/icon-512.png"
 ];
 

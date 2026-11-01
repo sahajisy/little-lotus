@@ -257,7 +257,13 @@
             el("p", { class: "muted nums" }, `${n.toLocaleString()} questions for ages ${AGES[state.tier]}` + (best[key] ? ` · Best: ${best[key]} stars` : ""))),
           el("div", { class: "row" },
             el("a", { class: "btn ghost", href: "#/print" }, "Print worksheets"),
-            el("button", { class: "btn accent", disabled: n < 4 || null, onclick: startQuiz }, "Start quiz"))))
+            el("button", { class: "btn accent", disabled: n < 4 || null, onclick: startQuiz }, "Start quiz")))),
+      el("section", { class: "card" },
+        el("div", { class: "spread" },
+          el("div", {},
+            el("h3", {}, "Play together"),
+            el("p", { class: "muted" }, "A quiz for a class or a group in one room: everyone answers on their own phone, or teams answer with cards.")),
+          el("a", { class: "btn ghost", href: "#/group" }, "Play together")))
     );
   }
 
@@ -283,9 +289,10 @@
   /* --------------------------------------------------------------- quiz */
   let quiz = null;
 
-  function pickRound(topic, tier) {
-    const pool = poolFor(topic, tier);
-    const size = Math.min(ROUND_SIZE[tier], pool.length);
+  // keep: optional filter on questions; size: optional round length.
+  function pickRound(topic, tier, keep, size) {
+    const pool = keep ? poolFor(topic, tier).filter(keep) : poolFor(topic, tier);
+    size = Math.min(size || ROUND_SIZE[tier], pool.length);
     // Prefer questions made for this age, then the age below, then the rest.
     const weight = q => q.tier === tier ? 4 : q.tier === tier - 1 ? 2 : 1;
     const picked = [], used = new Set(), talksUsed = {};
@@ -627,18 +634,20 @@
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     const h = location.hash.replace(/^#\/?/, "");
     const [page, ...rest] = h.split("/");
-    const tab = { "": "play", play: "play", quiz: "play", talks: "talks", talk: "talks", print: "print", about: "about" }[page] || "play";
+    const tab = { "": "play", play: "play", quiz: "play", group: "play", talks: "talks", talk: "talks", print: "print", about: "about" }[page] || "play";
     document.querySelectorAll("[data-tab]").forEach(a => { if (a.dataset.tab === tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (page === "quiz") renderQuiz();
     else if (page === "talks") renderTalks(rest[0], rest[1] ? decodeURIComponent(rest[1]) : null);
     else if (page === "talk") { const [ref, at] = (rest.join("/") || "").split("@"); const [id, lang] = ref.split("~"); renderTalk(id, at ? +at : null, lang || null); }
+    else if (page === "group") window.CQGroup.render(main, rest[0] || "", { state, saveState, agePicker, topicPicker, langPicker, countFor, poolFor });
     else if (page === "print") window.CQPrint.render(main, { state, saveState, agePicker, topicPicker, langPicker, poolFor, AGES, AGE_NAMES });
     else if (page === "about") renderAbout();
     else renderPlay();
     if (page !== "talk") window.scrollTo({ top: 0 });
   }
 
-  window.CQ = { D, el, shuffle, sample, talk, ytLink, ytShort, fmtTime, niceDate, optionsFor, store, CHAKRA_COLOR, AGES, AGE_NAMES, OPTION_COUNT };
+  window.CQ = { D, el, vtt, shuffle, sample, talk, ytLink, ytShort, fmtTime, niceDate, optionsFor, pickRound, blankedNode, sourceBlock, speak, canSpeak, lotusSVG,
+    store, CHAKRA_COLOR, TILE_COLORS, TYPE_PROMPT, AGES, AGE_NAMES, OPTION_COUNT };
   applyTheme();
   applyAge();
   setTimeout(() => document.documentElement.classList.add("ready"), 300); // colour changes animate only after the first paint
