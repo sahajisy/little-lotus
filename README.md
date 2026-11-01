@@ -18,6 +18,7 @@ The app works fully offline, with no ads, no accounts and no data collected ([pr
   - *At which puja did she say this?* (ages 14 and up)
   - *In which decade did she say this?* (adults)
   - Little ones get two big choices, short sentences and read-aloud.
+- **Play together:** one quiz for a whole room. Everyone answers on their own phone by scanning a code (the Android app hosts the room over the local Wi-Fi or its hotspot, so nothing leaves the room), or teams answer with printed A, B, C, D cards on one screen.
 - **Talks:** more than 2,200 talks, grouped by puja, event, chakra and language, and searchable.
 - **Print:** worksheets for any topic and age: colour the chakras, trace her words, multiple choice with QR codes, matching, word search, crossword, fill in the blanks, reflect and write, with an answer key.
 - **Languages:** English, हिंदी (Hindi) and मराठी (Marathi).

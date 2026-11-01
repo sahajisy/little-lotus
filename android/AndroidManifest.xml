@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.littlelotus.app">
 
+    <!-- Play together: players on the same Wi-Fi or hotspot join a small server on this phone. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
