@@ -262,7 +262,7 @@
         el("div", { class: "spread" },
           el("div", {},
             el("h3", {}, "Play together"),
-            el("p", { class: "muted" }, "A quiz for a class or a group in one room: everyone answers on their own phone, or teams answer with cards.")),
+            el("p", { class: "muted" }, "A quiz for a class or a group in one room, on one big screen. Players answer on their phones, in teams with cards, or both.")),
           el("a", { class: "btn ghost", href: "#/group" }, "Play together")))
     );
   }
@@ -616,7 +616,10 @@
            ["GitHub", "https://github.com/sahajisy", "github.com/sahajisy"],
            ["LinkedIn", "https://in.linkedin.com/in/sahaj-balgunde", "linkedin.com/in/sahaj-balgunde"]]
             .map(([label, href, text]) => el("li", {}, el("span", { class: "muted" }, label + ": "), el("a", { href, "data-ext": true, target: "_blank", rel: "noopener" }, text)))),
-        el("p", { class: "muted" }, `Version ${APP_VERSION}`)));
+        el("p", { class: "muted" }, `Version ${APP_VERSION}`)),
+      el("section", { class: "card" },
+        el("h3", {}, "Restore Shri Ganesha"),
+        el("p", {}, "Little Lotus is part of the Restore Shri Ganesha initiative.")));
   }
 
   function applyTheme() {
@@ -660,7 +663,7 @@
   if (splash) {
     const hide = () => { splash.classList.add("done"); setTimeout(() => splash.remove(), 600); };
     const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setTimeout(hide, Math.max(reduced ? 300 : 1500 - performance.now(), 0));
+    setTimeout(hide, Math.max(reduced ? 300 : 2200 - performance.now(), 0));
     splash.addEventListener("click", hide);
   }
 
