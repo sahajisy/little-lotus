@@ -123,16 +123,27 @@
     timer = setInterval(() => { t.textContent = Math.max(0, Math.ceil((end - Date.now()) / 1000)); }, 250);
   }
 
+  // The talk and moment the sentence comes from. The link only ever opens YouTube, whatever the room sends.
+  function source(src) {
+    if (!src || typeof src.title !== "string") return null;
+    const safe = typeof src.url === "string" && /^https:\/\/(www\.)?youtube\.com\/watch\?v=[\w-]+(&t=\d+s)?$/.test(src.url);
+    return el("div", { class: "source" },
+      el("b", {}, src.title),
+      el("span", { class: "muted nums" }, [src.date, src.at ? "at " + src.at : ""].filter(Boolean).join(" · ")),
+      safe ? el("div", { class: "row" }, el("a", { class: "btn small", href: src.url, target: "_blank", rel: "noopener" }, "▶ Watch this moment")) : null);
+  }
+
   function result(s) {
     const r = s.res && s.res[me.id];
     const right = el("p", {}, "The answer was ", el("b", {}, `${LETTERS[s.right]}: ${s.opts[s.right]}`));
-    if (!r) return show(el("section", { class: "card wait" }, el("h1", {}, "Get ready"), right, el("p", { class: "muted" }, "You'll play from the next question.")));
+    const words = [el("blockquote", { class: "quote", lang: s.lang }, s.text), source(s.src)];
+    if (!r) return show(el("section", { class: "card wait" }, el("h1", {}, "Get ready"), right, el("p", { class: "muted" }, "You'll play from the next question."), ...words));
     show(el("section", { class: "card wait" },
       el("div", { class: "quizbar nums" }, el("span", {}, `Question ${s.n} of ${s.of}`)),
       el("div", { class: "verdict " + (r.ok ? "ok" : "no") }, r.ok ? "Right!" : r.ans ? "Not this time" : "Time's up"),
       r.ok ? el("p", { class: "score nums" }, "+" + r.pts.toLocaleString()) : right,
       el("p", { class: "nums" }, `${r.total.toLocaleString()} points · ${ordinal(r.rank)} of ${s.players}`),
-      el("blockquote", { class: "quote", lang: s.lang }, s.text)));
+      ...words));
   }
 
   function final(s) {

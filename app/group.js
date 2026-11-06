@@ -258,7 +258,10 @@
     const common = { n: g.i + 1, of: g.items.length, q: g.i, prompt: C.TYPE_PROMPT[q.type], lang: q.l || "en", opts: it.opts.map(vtt) };
     if (g.phase === "q") return Object.assign(base, common, { ph: "q", text: vtt(shownText(q)), secs: g.secs, left: Math.max(1, Math.round((g.deadline - Date.now()) / 1000)) });
     g.players.forEach(p => { res[p.id] = { ok: !!p.ok, pts: p.gain || 0, total: p.score, rank: pl[p.id], ans: p.answered }; });
-    return Object.assign(base, common, { ph: "r", text: vtt(q.s), right: it.right, res });
+    // Where and when she said it, as the big screen shows it.
+    const t = C.talk(q.t);
+    const src = { title: vtt(t.title), date: C.niceDate(t.date) || "Date unknown", at: C.fmtTime(q.at), url: C.ytLink(q.t, q.at) };
+    return Object.assign(base, common, { ph: "r", text: vtt(q.s), right: it.right, res, src });
   }
   // Sends the players' screen. Sends go one after another, so a slow network can't reorder them.
   // Resolves to the server's clock when the screen arrived (answers are timed against it).

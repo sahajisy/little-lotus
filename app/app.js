@@ -430,7 +430,7 @@
     const t = talk(q.t);
     return el("div", { class: "source" },
       el("b", {}, t.title),
-      el("span", { class: "muted nums" }, [niceDate(t.date), "at " + fmtTime(q.at)].filter(Boolean).join(" · ")),
+      el("span", { class: "muted nums" }, [niceDate(t.date) || "Date unknown", "at " + fmtTime(q.at)].join(" · ")),
       el("div", { class: "row" },
         el("a", { class: "btn small", href: ytLink(q.t, q.at), "data-ext": "" }, "▶ Watch this moment"),
         el("a", { class: "btn ghost small", href: talkHref(q.t, q.l, q.at) }, "Read the full talk")));
