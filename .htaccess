@@ -6,6 +6,11 @@ DirectoryIndex index.html
 <IfModule mod_headers.c>
   Header always set X-Robots-Tag "noindex, nofollow"
   Header always set X-Content-Type-Options "nosniff"
+  # Pages, scripts and styles: browsers check for a newer copy on every visit (a tiny "not modified"
+  # reply when nothing changed), so updates reach people at once instead of after the host's 7 days.
+  <FilesMatch "\.(html|js|css|webmanifest)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
 </IfModule>
 
 AddType application/manifest+json .webmanifest
