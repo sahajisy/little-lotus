@@ -651,6 +651,8 @@
 
   window.CQ = { D, el, vtt, shuffle, sample, talk, ytLink, ytShort, fmtTime, niceDate, optionsFor, pickRound, blankedNode, sourceBlock, speak, canSpeak, lotusSVG,
     store, CHAKRA_COLOR, TILE_COLORS, TYPE_PROMPT, AGES, AGE_NAMES, OPTION_COUNT };
+  // "Get app" downloads the Android app, so it only belongs on the website, not inside the app.
+  if (window.Android) document.querySelectorAll(".nav-app").forEach(a => a.remove());
   applyTheme();
   applyAge();
   setTimeout(() => document.documentElement.classList.add("ready"), 300); // colour changes animate only after the first paint
