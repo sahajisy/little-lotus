@@ -1,8 +1,9 @@
 /* Play together: one quiz for a whole room, on one big screen.
    Players can answer on their own phones, in teams with printed letter cards, or both at once:
-   - Phones: the Android app opens a small room on the local Wi-Fi or the phone's hotspot
-     (see GameServer.java). Players scan a code and answer in their phone's browser; faster
-     right answers score more. Nothing leaves the room.
+   - Phones: players scan a code and answer in their phone's browser; faster right answers
+     score more. In the Android app the room runs on the phone itself, over the local Wi-Fi or
+     hotspot, and nothing leaves the room (GameServer.java). On the website the room runs
+     online through room.php, so players can join from anywhere with internet.
    - Card teams: teams hold up A, B, C or D, and the host taps which teams were right.
    Everyone shares one scoreboard. Questions are the same captioned sentences as the solo
    quiz, shown unchanged. */
@@ -17,7 +18,39 @@
   const TEAM_POINTS = 750; // a right card answer: the middle of what a phone earns (500 slow to 1,000 instant)
   const TEAM_NAMES = ["Lotus", "Jasmine", "Marigold", "Rose", "Lily", "Champa"];
   const TEAM_COLORS = ["var(--c-heart)", "var(--c-swadishthan)", "var(--c-nabhi)", "var(--c-vishuddhi)", "var(--c-sahasrara)", "var(--c-mooladhara)"];
-  const canHost = () => !!(window.Android && window.Android.hostStart);
+  const hasLocal = () => !!(window.Android && window.Android.hostStart);
+  const hasOnline = () => !hasLocal() && /^https?:$/.test(location.protocol);
+  const canHost = () => hasLocal() || hasOnline();
+
+  // A room is hosted either by the Android app on the local network, or online by the website.
+  // Both offer the same calls, as promises: open, state (returns the server clock), events, close.
+  const LocalRoom = () => ({
+    online: false,
+    async open() {
+      const code = String(1000 + Math.floor(Math.random() * 9000));
+      const res = JSON.parse(window.Android.hostStart(code));
+      if (!res.ok) throw new Error(res.error || "port");
+      return { code, port: res.port, addrs: res.addrs };
+    },
+    async state(json) { return Number(window.Android.hostState(json)) || Date.now(); },
+    async events() { return JSON.parse(window.Android.hostEvents()); },
+    close() { try { window.Android.hostStop(); } catch (e) { /* already closed */ } }
+  });
+  const OnlineRoom = () => {
+    let code = "", key = "";
+    const call = (a, data, keepalive) => fetch("room.php?a=" + a, {
+      method: "POST", keepalive: !!keepalive, cache: "no-store",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(Object.assign({ code, key }, data || {}))
+    }).then(r => r.json()).then(r => { if (r.error) throw new Error(r.error); return r; });
+    return {
+      online: true,
+      async open() { const r = await call("host-start").catch(() => { throw new Error("online"); }); code = r.code; key = r.key; return { code }; },
+      async state(json) { return (await call("host-state", { state: json })).now; },
+      async events() { return (await call("host-events")).events; },
+      close() { if (code) call("host-stop", null, true).catch(() => {}); }
+    };
+  };
 
   let game = null; // the game in progress, kept while the host looks at other pages
   let ctx = null, main = null, lastError = "";
@@ -92,13 +125,16 @@
     const phonesBox = el("div", { class: "how" },
       el("div", { class: "spread" },
         el("div", {}, el("h3", {}, "On their own phones"),
-          el("p", { class: "muted" }, "Players scan a code and answer in their phone's browser; no app needed on their phones. Faster right answers score more.")),
+          el("p", { class: "muted" }, hasOnline()
+            ? "Players scan a code and answer in their phone's browser, from anywhere with internet; no app needed. Faster right answers score more."
+            : "Players scan a code and answer in their phone's browser; no app needed on their phones. Faster right answers score more.")),
         canHost() ? el("div", { class: "seg", role: "group", "aria-label": "Players on phones" },
           el("button", { "aria-pressed": String(cfg.phones), onclick: () => set("phones", true) }, "Yes"),
           el("button", { "aria-pressed": String(!cfg.phones), onclick: () => set("phones", false) }, "No")) : null),
-      canHost()
-        ? (cfg.phones ? el("p", { class: "muted small" }, "This phone and the players must be on the same Wi-Fi. No Wi-Fi? Turn on this phone's hotspot and let the players join it.") : null)
-        : el("p", { class: "notice" }, "Phones can join when the host uses the Little Lotus Android app. Here, play with card teams."));
+      !canHost() ? el("p", { class: "notice" }, "Phones can join when the host uses the Little Lotus Android app. Here, play with card teams.")
+        : !cfg.phones ? null
+        : hasLocal() ? el("p", { class: "muted small" }, "This phone and the players must be on the same Wi-Fi. No Wi-Fi? Turn on this phone's hotspot and let the players join it.")
+        : el("p", { class: "muted small" }, "Players' names and answers pass through this website's server during the game only, and are deleted when you close the room (or after 4 hours at most)."));
 
     const names = el("div", { class: "team-names" }, cfg.names.slice(0, cfg.teams).map((name, k) => el("label", { class: "field team-field" },
       el("span", {}, el("span", { class: "dot", style: "--dot:" + TEAM_COLORS[k] }), `Team ${k + 1}`),
@@ -142,7 +178,7 @@
         phonesBox, teamsBox,
         lastError ? el("p", { class: "notice warn", role: "alert" }, lastError) : null,
         el("div", { class: "row" },
-          el("button", { class: "btn accent", disabled: !ready || null, onclick: start }, cfg.phones ? "Open the room" : "Start the quiz"),
+          el("button", { class: "btn accent", disabled: !ready || null, onclick: e => { e.currentTarget.disabled = true; start(); } }, cfg.phones ? "Open the room" : "Start the quiz"),
           why ? el("span", { class: "muted" }, why) : null))
     ].filter(Boolean));
   }
@@ -165,10 +201,11 @@
   /* ------------------------------------------------------------------ game */
   const ERRORS = {
     network: "This phone isn't on a Wi-Fi network. Connect it to Wi-Fi, or turn on its hotspot, then try again.",
-    port: "The room couldn't be opened. Close other apps that might be using the network and try again."
+    port: "The room couldn't be opened. Close other apps that might be using the network and try again.",
+    online: "The online room couldn't be opened. Check the internet connection and try again."
   };
 
-  function start() {
+  async function start() {
     const cfg = settings();
     const tier = ctx.state.tier;
     game = {
@@ -177,11 +214,14 @@
       tier, n: cfg.count, secs: SECONDS[tier], topic: ctx.state.topic.name, start: 0, deadline: 0
     };
     if (cfg.phones) {
-      const room = String(1000 + Math.floor(Math.random() * 9000));
-      let res;
-      try { res = JSON.parse(window.Android.hostStart(room)); } catch (e) { res = { ok: false, error: "port" }; }
-      if (!res.ok) { game = null; lastError = ERRORS[res.error] || ERRORS.port; renderSetup(); return; }
-      Object.assign(game, { room, port: res.port, addrs: res.addrs, addr: res.addrs[0] });
+      const g = game;
+      g.transport = hasLocal() ? LocalRoom() : OnlineRoom();
+      try {
+        const r = await g.transport.open();
+        Object.assign(g, { room: r.code, port: r.port, addrs: r.addrs || [], addr: (r.addrs || [])[0] });
+      } catch (e) {
+        game = null; lastError = ERRORS[e.message] || (hasLocal() ? ERRORS.port : ERRORS.online); renderSetup(); return;
+      }
     }
     lastError = "";
     game.tick = setInterval(tick, 250);
@@ -193,7 +233,7 @@
   function endGame() {
     if (!game) return;
     clearInterval(game.tick);
-    if (game.room) { try { window.Android.hostStop(); } catch (e) { /* already closed */ } }
+    if (game.room) game.transport.close();
     game = null;
   }
 
@@ -220,28 +260,44 @@
     g.players.forEach(p => { res[p.id] = { ok: !!p.ok, pts: p.gain || 0, total: p.score, rank: pl[p.id], ans: p.answered }; });
     return Object.assign(base, common, { ph: "r", text: vtt(q.s), right: it.right, res });
   }
+  // Sends the players' screen. Sends go one after another, so a slow network can't reorder them.
+  // Resolves to the server's clock when the screen arrived (answers are timed against it).
   function push() {
-    if (!game.room) return Date.now();
-    return Number(window.Android.hostState(JSON.stringify(publicState(game)))) || Date.now();
+    const g = game;
+    if (!g || !g.room) return Promise.resolve(Date.now());
+    const json = JSON.stringify(publicState(g));
+    g.sending = (g.sending || Promise.resolve()).then(() => g.transport.state(json)).then(
+      now => { g.trouble = false; return now; },
+      () => { g.trouble = true; return Date.now(); });
+    return g.sending;
   }
 
   function tick() {
     const g = game;
     if (!g) return;
-    let joined = false;
-    if (g.room) {
-      let events = [];
-      try { events = JSON.parse(window.Android.hostEvents()); } catch (e) { events = []; }
-      for (const e of events) {
-        if (e.e === "join" && !g.players.has(e.id)) {
-          g.players.set(e.id, { id: e.id, name: e.name, score: 0, gain: null, ok: false, answered: false });
-          joined = true;
-        } else if (e.e === "answer" && g.phase === "q" && e.q === g.i && g.players.has(e.id) && !g.answers.has(e.id) && e.a < g.items[g.i].opts.length) {
-          g.answers.set(e.id, { a: e.a, t: e.t });
-        }
-      }
-      if (joined && g.phase !== "q") push(); // phones show how many are playing
+    // Online, ask for news a little less often, to go easy on the website.
+    if (g.room && !g.polling && Date.now() - (g.polled || 0) >= (g.transport.online ? 700 : 0)) {
+      g.polling = true; g.polled = Date.now();
+      g.transport.events().then(ev => { if (game === g) onEvents(g, ev); }, () => { g.trouble = true; }).then(() => { g.polling = false; });
     }
+    timer(g);
+  }
+
+  function onEvents(g, events) {
+    g.trouble = false;
+    let joined = false;
+    for (const e of events || []) {
+      if (e.e === "join" && !g.players.has(e.id)) {
+        g.players.set(e.id, { id: e.id, name: e.name, score: 0, gain: null, ok: false, answered: false });
+        joined = true;
+      } else if (e.e === "answer" && g.phase === "q" && e.q === g.i && g.players.has(e.id) && !g.answers.has(e.id) && e.a < g.items[g.i].opts.length) {
+        g.answers.set(e.id, { a: e.a, t: e.t });
+      }
+    }
+    if (joined && g.phase !== "q") { push(); draw(); } // phones and the lobby show who is playing
+  }
+
+  function timer(g) {
     if (g.phase === "q") {
       const left = Math.max(0, Math.ceil((g.deadline - Date.now()) / 1000));
       if (g.ui && g.ui.left) g.ui.left.textContent = left;
@@ -249,7 +305,7 @@
       // Card teams answer aloud, so with teams playing only the timer or the host ends a question.
       const allIn = !g.teams.length && g.players.size && g.answers.size >= g.players.size;
       if (left <= 0 || allIn) reveal();
-    } else if (joined) draw();
+    }
   }
 
   function ask() {
@@ -259,7 +315,8 @@
     g.phase = "q"; g.answers = new Map(); g.got = new Set();
     everyone(g).forEach(p => { p.gain = null; p.ok = false; p.answered = false; });
     g.deadline = Date.now() + g.secs * 1000;
-    g.start = push();
+    g.start = Date.now();
+    push().then(t => { if (game === g) g.start = t; });
     draw();
   }
 
@@ -359,8 +416,10 @@
   }
 
   function lobby(g) {
-    const url = `http://${g.addr}:${g.port}/?r=${g.room}`;
-    const addrSeg = g.addrs.length > 1 ? el("div", { class: "row" }, el("span", { class: "muted" }, "Players can't open it? Try another address:"),
+    const here = location.host + location.pathname.replace(/[^/]*$/, "");
+    const url = g.transport.online ? `${location.protocol}//${here}play.html?r=${g.room}` : `http://${g.addr}:${g.port}/?r=${g.room}`;
+    const where = g.transport.online ? `${here}play.html` : `${g.addr}:${g.port}`;
+    const addrSeg = !g.transport.online && g.addrs.length > 1 ? el("div", { class: "row" }, el("span", { class: "muted" }, "Players can't open it? Try another address:"),
       el("div", { class: "seg", role: "group", "aria-label": "Address" }, g.addrs.map(a => el("button", { "aria-pressed": String(a === g.addr), onclick: () => { g.addr = a; draw(); } }, a)))) : null;
     const names = [...g.players.values()];
     return el("section", { class: "card stage" },
@@ -370,8 +429,8 @@
         el("div", { class: "join-steps" },
           el("h1", {}, "Join the game"),
           el("ol", {},
-            el("li", {}, "Join the same Wi-Fi as this phone, or this phone's hotspot."),
-            el("li", {}, "Scan the code with your phone's camera, or open ", el("b", { class: "nums url" }, `${g.addr}:${g.port}`), " in its browser."),
+            g.transport.online ? null : el("li", {}, "Join the same Wi-Fi as this phone, or this phone's hotspot."),
+            el("li", {}, "Scan the code with your phone's camera, or open ", el("b", { class: "nums url" }, where), " in its browser."),
             el("li", {}, "Type your name. Room code ", el("b", { class: "nums room" }, g.room), ".")))),
       addrSeg,
       el("h3", { class: "nums" }, names.length ? `${plural(names.length, "player", "players")} on phones` : "Waiting for players…"),

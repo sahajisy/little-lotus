@@ -1,6 +1,7 @@
 /* Little Lotus, Play together: the page players open on their own phones.
-   It is served by the host's phone (GameServer.java) on the local network, shows
-   whatever the host's screen is asking, and sends this player's answer back. */
+   It is served either by the host's phone (GameServer.java, on the local network) or by the
+   website (room.php, online); it shows whatever the host's screen is asking, and sends this
+   player's answer back. */
 (function () {
   "use strict";
   const LETTERS = "ABCD";
@@ -13,6 +14,10 @@
   let room = params.get("r") || saved.room || "";
   let me = saved.room === room ? saved : {}; // {room, id, key, name}
   let version = 0, current = null, answered = {}, timer = null, closed = false;
+  // The phone's own server listens on ports 8686-8690; anywhere else, this page came from the website.
+  const ONLINE = !/^(868[6-9]|8690)$/.test(location.port);
+  const api = (op, query) => ONLINE ? `room.php?a=${op}${query ? "&" + query : ""}` : `${op}${query ? "?" + query : ""}`;
+  const CANT_REACH = ONLINE ? "Couldn't reach the game. Check your internet connection." : "Couldn't reach the host's phone. Are you on the same Wi-Fi?";
 
   function el(tag, attrs, ...kids) {
     const n = document.createElement(tag);
@@ -39,19 +44,19 @@
   /* ----------------------------------------------------------------- join */
   function joinScreen(error) {
     const name = el("input", { class: "search", type: "text", maxlength: "18", autocomplete: "nickname", placeholder: "Your name", "aria-label": "Your name", value: me.name || "" });
-    const code = el("input", { class: "search nums", type: "text", inputmode: "numeric", maxlength: "4", placeholder: "Room code", "aria-label": "Room code", value: room });
+    const code = el("input", { class: "search nums", type: "text", inputmode: "numeric", maxlength: "6", placeholder: "Room code", "aria-label": "Room code", value: room });
     const btn = el("button", { class: "btn accent", type: "submit" }, "Join");
     const form = el("form", { class: "card join", onsubmit: e => {
       e.preventDefault();
       if (!name.value.trim()) { name.focus(); return; }
       btn.disabled = true;
       room = code.value.trim();
-      post("join", { room, name: name.value }).then(r => {
+      post(api("join"), { room, name: name.value }).then(r => {
         if (r.error) { btn.disabled = false; joinScreen({ room: "That room code isn't right. Check the host's screen.", full: "This room is full.", name: "Please type a name.", closed: "This room is closed." }[r.error] || "Couldn't join. Try again."); return; }
         me = { room, id: r.id, key: r.key, name: r.name };
         remember();
         listen();
-      }).catch(() => { btn.disabled = false; joinScreen("Couldn't reach the host's phone. Are you on the same Wi-Fi?"); });
+      }).catch(() => { btn.disabled = false; joinScreen(CANT_REACH); });
     } },
       el("h1", {}, "Join the game"),
       el("p", { class: "muted" }, "Your name is shown on the big screen with the scores."),
@@ -67,12 +72,14 @@
     if (!current) show(el("section", { class: "card" }, el("p", {}, "Connecting…")));
     const loop = () => {
       if (closed) return;
-      fetch(`state?key=${encodeURIComponent(me.key)}&v=${version}`, { cache: "no-store" }).then(r => r.json()).then(r => {
+      fetch(api("state", `code=${encodeURIComponent(room)}&key=${encodeURIComponent(me.key)}&v=${version}`), { cache: "no-store" }).then(r => r.json()).then(r => {
         conn.hidden = true;
         if (r.closed) { closed = true; return show(el("section", { class: "card" }, el("h1", {}, "The room is closed"), el("p", {}, "Thank you for playing!"))); }
         if (!r.me) { me = {}; remember(); return joinScreen("The host's room was opened again. Please join once more."); }
-        if (r.v !== version) { version = r.v; current = r.s; draw(r.s); }
-        loop();
+        const changed = r.v !== version;
+        if (changed) { version = r.v; current = r.s; draw(r.s); }
+        // The phone's server waits for news before answering; the website answers at once, so ask again in a moment.
+        setTimeout(loop, ONLINE && !changed ? 1000 : 0);
       }).catch(() => { conn.hidden = false; setTimeout(loop, 1500); });
     };
     loop();
@@ -100,7 +107,7 @@
     const box = el("div", { class: "answers" + (s.opts.length === 2 ? " two" : "") }, s.opts.map((o, k) => el("button", {
       class: "answer", style: "--tile:" + TILES[k % 4], onclick: () => {
         [...box.children].forEach(b => b.disabled = true);
-        post("answer", { key: me.key, q: s.q, a: k }).then(r => {
+        post(api("answer"), { code: room, key: me.key, q: s.q, a: k }).then(r => {
           if (r.error === "player") { me = {}; remember(); return joinScreen("Please join again."); }
           answered[s.q] = k;
           if (current === s) question(s);
