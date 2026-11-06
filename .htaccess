@@ -1,0 +1,22 @@
+# Hostinger Git deployment: the whole repository is copied into public_html, but only the
+# web app in app/ is the website. Everything else in the repository stays private.
+Options -Indexes
+DirectoryIndex index.html
+
+<IfModule mod_headers.c>
+  Header always set X-Robots-Tag "noindex, nofollow"
+  Header always set X-Content-Type-Options "nosniff"
+</IfModule>
+
+AddType application/manifest+json .webmanifest
+AddType font/woff2 .woff2
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Never serve the repository's own files: git data, Android code, build tools, catalogues.
+  RewriteRule ^(\.git|\.github|android|tools|meta)(/|$) - [F,L]
+  RewriteRule ^(README\.md|\.gitignore)$ - [F,L]
+  # Everything else comes from app/, so the site's address stays clean (no /app/ in it).
+  RewriteCond %{REQUEST_URI} !^/app/
+  RewriteRule ^(.*)$ app/$1 [L]
+</IfModule>
