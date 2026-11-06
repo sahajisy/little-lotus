@@ -788,7 +788,20 @@
     splash.addEventListener("click", hide);
   }
 
+  // Offline copy. A new version downloads in the background; when it takes over an open page,
+  // offer a reload, since the page itself is still the old version until then.
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      // Check again whenever the app comes back to the screen, so a long-open tab finds updates too.
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+    }).catch(() => {});
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || document.getElementById("update-bar")) return; // first install: nothing to reload
+      document.body.append(el("div", { class: "update-bar", id: "update-bar", role: "status" },
+        el("span", {}, "Little Lotus has been updated."),
+        el("button", { class: "btn accent small", onclick: () => location.reload() }, "Reload"),
+        el("button", { class: "btn ghost small", "aria-label": "Later", onclick: e => e.currentTarget.parentNode.remove() }, "Later")));
+    });
   }
 })();
