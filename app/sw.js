@@ -1,13 +1,14 @@
 // Offline support for the web app: the app shell and question bank are cached on
 // first visit; each talk's captions are cached the first time it is opened.
-const VERSION = "lotus-v5";
+const VERSION = "lotus-v6";
 const SHELL = [
   "./", "index.html", "style.css", "app.js", "print.js", "group.js", "qr.js", "data.js",
   "manifest.webmanifest", "fonts/fonts.css", "icons/icon-192.png", "icons/icon-512.png"
 ];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: "reload" skips the browser's HTTP cache (the host keeps scripts for 7 days), so an update gets the new files.
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {

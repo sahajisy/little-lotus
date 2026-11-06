@@ -542,7 +542,7 @@
     if (!t.langs.includes(lang)) lang = t.langs[0];
     const original = lang === t.langs[0];
     const switcher = t.langs.length > 1 ? el("div", { class: "seg langs", role: "group", "aria-label": "Caption language" },
-      ...t.langs.map((k, i) => el("button", { lang: k, "aria-pressed": String(k === lang), onclick: () => { location.hash = talkHref(id, k === "en" ? null : k, at); } },
+      ...t.langs.map((k, i) => el("button", { lang: k, "aria-pressed": String(k === lang), onclick: () => { location.hash = `#/talk/${id}${k === t.langs[0] ? "" : "~" + k}${at != null ? "@" + at : ""}`; } },
         i === 0 ? LANG_LABEL[k] + " · her words" : LANG_LABEL[k] + " translation"))) : null;
     const reader = el("div", { class: "reader" }, el("p", { class: "muted" }, "Loading the captions…"));
     const find = el("input", { class: "search", type: "search", id: "in-talk-search", placeholder: "Find words in this talk", "aria-label": "Find words in this talk" });
