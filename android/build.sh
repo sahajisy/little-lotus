@@ -48,9 +48,11 @@ EOF
 "$BT/zipalign" -f -p 4 build/unsigned.apk build/aligned.apk
 
 KS=${KEYSTORE:-$HERE/littlelotus.keystore}
+# Every release must be signed with the app's key, or it won't install over the app people have.
+# So a missing key stops the build instead of quietly making a new one.
 if [ ! -f "$KS" ]; then
-  keytool -genkeypair -keystore "$KS" -alias littlelotus -keyalg RSA -keysize 2048 -validity 10000 \
-    -storepass littlelotus -keypass littlelotus -dname "CN=Little Lotus" >/dev/null 2>&1
+  echo "Signing key not found: $KS. Set KEYSTORE=/path/to/littlelotus.keystore and KS_PASS." >&2
+  exit 1
 fi
 "$BT/apksigner" sign --ks "$KS" --ks-key-alias littlelotus --ks-pass pass:${KS_PASS:-littlelotus} \
   --key-pass pass:${KS_PASS:-littlelotus} --out out/LittleLotus.apk build/aligned.apk
