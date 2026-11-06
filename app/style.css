@@ -333,7 +333,7 @@ a.chip { color: var(--ink); text-decoration: none; }
 .preview { border: 1px solid var(--line); border-radius: var(--r); background: #fff; color: #111; overflow: auto; max-height: 70vh; }
 .preview .page { box-shadow: 0 0 0 1px #ddd; margin: 16px auto; }
 .field { display: grid; gap: 6px; }
-.field select, .field input[type="text"], .field input[type="number"] { padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px; background: var(--card); max-width: 100%; }
+.field select, .field input[type="text"], .field input[type="number"], .field input[type="email"], .field textarea { padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px; background: var(--card); max-width: 100%; }
 
 .notice { padding: 12px 14px; border-radius: var(--r-sm); background: var(--breeze-soft); font-size: .95rem; }
 
@@ -518,3 +518,16 @@ html.ready body { transition: background-color .45s ease, color .45s ease; }
 .player .answer.picked { cursor: default; }
 .player .join .btn { justify-self: start; }
 .conn { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 8px 16px; border-radius: 999px; font-weight: 700; }
+
+/* Feedback */
+.feedback { gap: 16px; }
+.feedback .field > span:first-child { font-weight: 700; }
+.feedback textarea { width: 100%; font: inherit; resize: vertical; min-height: 96px; }
+.feedback input[type="text"], .feedback input[type="email"] { width: 100%; }
+.star-pick { display: flex; gap: 4px; }
+.star-pick button { border: 0; background: none; font-size: 2.3rem; line-height: 1; padding: 2px 4px; color: var(--line); cursor: pointer; }
+.star-pick button.on { color: #F5B800; }
+.trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.feedback-status:empty { display: none; }
+.feedback-status { font-weight: 700; }
+.feedback-line { text-align: center; }
