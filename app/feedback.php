@@ -4,15 +4,24 @@
  * developer. Nothing is stored here except a short-lived counter per visitor, used to stop
  * floods of messages (at most RATE_MAX in RATE_WINDOW seconds), kept in the server's temporary folder.
  *
+ * GET  ?a=ticket -> {ticket, bits}: a signed, single-use ticket handed out when the form opens.
  * POST (form-encoded): rating 1-5 (required), like, better, name, email (all optional),
- * where ("Android app" or "Website"), version, and "company", a hidden field people never fill in.
- * Returns {ok: true} or {error: "..."}.
+ * where ("Android app" or "Website"), version, "company" (a hidden field people never fill in),
+ * ticket and nonce. Returns {ok: true} or {error: "..."}.
+ *
+ * Bot checks, all on this server (no third parties): the hidden field; the ticket must be at least
+ * MIN_AGE seconds old (people take time to type), at most MAX_AGE old, and used once; the browser
+ * must solve a small proof of work, sha256(ticket + ":" + nonce) starting with WORK_BITS zero bits
+ * (about a second on a phone, done while the person types); and at most RATE_MAX messages an hour.
  */
 
 const TO = 'sbalgunde@gmail.com';
 const FROM = 'Little Lotus <info@sahajbalgunde.com>';
 const RATE_MAX = 5;
 const RATE_WINDOW = 3600;
+const MIN_AGE = 3;
+const MAX_AGE = 7200;
+const WORK_BITS = 16;
 
 // The Android app sends from its own files (origin "null"), so allow any origin; no cookies are used.
 header('Access-Control-Allow-Origin: *');
@@ -35,11 +44,44 @@ function field($name, $max) {
 /** For email headers: one line only. */
 function one_line($s) { return trim(preg_replace('/[\r\n]+/', ' ', $s)); }
 
+$dir = rtrim(sys_get_temp_dir(), '/') . '/little-lotus-feedback';
+if (!is_dir($dir)) @mkdir($dir, 0700, true);
+
+/** This server's private signing key, made once and kept in the temporary folder. */
+function secret($dir) {
+    $f = $dir . '/secret.key';
+    $k = is_file($f) ? (string) @file_get_contents($f) : '';
+    if (strlen($k) !== 64) { $k = bin2hex(random_bytes(32)); @file_put_contents($f, $k, LOCK_EX); @chmod($f, 0600); }
+    return $k;
+}
+function sign($body, $dir) { return substr(hash_hmac('sha256', $body, secret($dir)), 0, 32); }
+/** True if the hex digest starts with $bits zero bits. */
+function enough_work($hex, $bits) {
+    $full = intdiv($bits, 4);
+    if (strncmp($hex, str_repeat('0', $full), $full) !== 0) return false;
+    $rest = $bits % 4;
+    return $rest === 0 || (hexdec($hex[$full]) >> (4 - $rest)) === 0;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') out(['ok' => true]);
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['a']) && $_GET['a'] === 'ticket') {
+    $body = time() . '.' . bin2hex(random_bytes(8));
+    out(['ticket' => $body . '.' . sign($body, $dir), 'bits' => WORK_BITS]);
+}
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') out(['error' => 'method'], 405);
 
 // Bots fill in every field; people never see this one. Pretend it worked.
 if (field('company', 200) !== '') out(['ok' => true]);
+
+// The ticket: signed by this server, old enough, not too old, with the proof of work done.
+$ticket = field('ticket', 80);
+$nonce = field('nonce', 20);
+$parts = explode('.', $ticket);
+if (count($parts) !== 3 || !ctype_digit($parts[0]) || !hash_equals(sign($parts[0] . '.' . $parts[1], $dir), $parts[2])) out(['error' => 'ticket'], 400);
+$age = time() - (int) $parts[0];
+if ($age > MAX_AGE) out(['error' => 'ticket'], 400);
+if ($age < MIN_AGE) out(['error' => 'early'], 400);
+if (!ctype_digit($nonce) || !enough_work(hash('sha256', $ticket . ':' . $nonce), WORK_BITS)) out(['error' => 'work'], 400);
 
 $rating = (int) field('rating', 1);
 if ($rating < 1 || $rating > 5) out(['error' => 'rating'], 400);
@@ -51,9 +93,11 @@ if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) out(['error' =>
 $where = field('where', 20) === 'Android app' ? 'Android app' : 'Website';
 $version = preg_replace('/[^0-9.]/', '', field('version', 10));
 
+// Each ticket works once.
+$used = $dir . '/used-' . hash('sha256', $ticket);
+if (!@fopen($used, 'x')) out(['error' => 'ticket'], 400);
+
 // At most RATE_MAX messages an hour from one address. Only a hash of the address is kept.
-$dir = rtrim(sys_get_temp_dir(), '/') . '/little-lotus-feedback';
-if (!is_dir($dir)) @mkdir($dir, 0700, true);
 $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
 $slot = $dir . '/' . hash('sha256', 'little-lotus|' . $ip) . '.json';
 $now = time();
@@ -63,6 +107,7 @@ if (count($times) >= RATE_MAX) out(['error' => 'busy'], 429);
 $times[] = $now;
 @file_put_contents($slot, json_encode($times), LOCK_EX);
 foreach (glob($dir . '/*.json') ?: [] as $f) { if (filemtime($f) < $now - RATE_WINDOW) @unlink($f); }
+foreach (glob($dir . '/used-*') ?: [] as $f) { if (filemtime($f) < $now - MAX_AGE) @unlink($f); }
 
 $stars = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
 $subject = "Little Lotus feedback: $stars ($rating/5) from $where";

@@ -632,8 +632,48 @@
   // own files, so it sends to the website's address; it needs internet for this one screen.
   const FEEDBACK_URL = /^https?:$/.test(location.protocol) ? "feedback.php" : "https://little-lotus.sahajbalgunde.com/feedback.php";
   const RATING_WORDS = ["", "Don't like it", "Not really", "It's okay", "Like it", "Love it"];
+
+  // Bot check without third parties: the server hands out a signed ticket when the form opens, and the
+  // browser finds a number so that sha256(ticket + ":" + number) starts with `bits` zero bits. It takes
+  // about a second on a phone and runs in small steps while the person types.
+  // Compact SHA-256 for short ASCII strings (the ticket and a number). Returns hex.
+  function sha256hex(str) {
+    const K = sha256hex.K || (sha256hex.K = (() => { const k = [], isPrime = n => { for (let i = 2; i * i <= n; i++) if (n % i === 0) return false; return true; };
+      for (let n = 2, c = 0; c < 64; n++) if (isPrime(n)) { k.push((Math.pow(n, 1 / 3) % 1) * 4294967296 | 0); c++; } return k; })());
+    const bytes = []; for (let i = 0; i < str.length; i++) bytes.push(str.charCodeAt(i) & 255);
+    const bitLen = bytes.length * 8; bytes.push(0x80); while (bytes.length % 64 !== 56) bytes.push(0);
+    for (let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bitLen >>> (i * 8)) & 255);
+    let h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    const w = new Array(64), rot = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let off = 0; off < bytes.length; off += 64) {
+      for (let i = 0; i < 16; i++) w[i] = (bytes[off + 4 * i] << 24) | (bytes[off + 4 * i + 1] << 16) | (bytes[off + 4 * i + 2] << 8) | bytes[off + 4 * i + 3];
+      for (let i = 16; i < 64; i++) { const s0 = rot(w[i - 15], 7) ^ rot(w[i - 15], 18) ^ (w[i - 15] >>> 3), s1 = rot(w[i - 2], 17) ^ rot(w[i - 2], 19) ^ (w[i - 2] >>> 10); w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0; }
+      let [a, b, c, d, e, f, g, hh] = h;
+      for (let i = 0; i < 64; i++) {
+        const t1 = (hh + (rot(e, 6) ^ rot(e, 11) ^ rot(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+        const t2 = ((rot(a, 2) ^ rot(a, 13) ^ rot(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+        hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      h = [h[0] + a, h[1] + b, h[2] + c, h[3] + d, h[4] + e, h[5] + f, h[6] + g, h[7] + hh].map(x => x | 0);
+    }
+    return h.map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
+  }
+  const leadingZeroBits = hex => { let n = 0; for (const ch of hex) { const v = parseInt(ch, 16); if (v === 0) { n += 4; continue; } return n + Math.clz32(v) - 28; } return n; };
+  function getTicket() {
+    const asked = Date.now();
+    return fetch(FEEDBACK_URL + "?a=ticket", { cache: "no-store" }).then(r => r.json()).then(({ ticket, bits }) => new Promise(done => {
+      let nonce = 0;
+      const step = () => {
+        for (let i = 0; i < 3000; i++, nonce++) if (leadingZeroBits(sha256hex(ticket + ":" + nonce)) >= bits) return done({ ticket, nonce, asked });
+        setTimeout(step, 0);
+      };
+      step();
+    }));
+  }
+
   function renderFeedback() {
     let rating = 0;
+    let work = getTicket(); work.catch(() => {}); // start straight away, while the form is being filled in
     const stars = el("div", { class: "star-pick", role: "radiogroup", "aria-label": "Your rating" });
     const word = el("span", { class: "muted" }, "Tap a star");
     const drawStars = () => {
@@ -655,10 +695,19 @@
       e.preventDefault();
       if (!rating) { status.textContent = "Please choose a rating first: tap a star."; stars.querySelector("button").focus(); return; }
       send.disabled = true; status.textContent = "Sending…";
-      try {
-        const r = await fetch(FEEDBACK_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      const attempt = async () => {
+        let w;
+        try { w = await work; } catch (err) { work = getTicket(); work.catch(() => {}); w = await work; }
+        const wait = 4000 - (Date.now() - w.asked); // the server accepts a ticket once it is a few seconds old
+        if (wait > 0) await new Promise(t => setTimeout(t, wait));
+        work = getTicket(); work.catch(() => {}); // each ticket works once; have the next one ready
+        return fetch(FEEDBACK_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ rating, like: like.value, better: better.value, name: name.value, email: email.value, company: trap.value,
-            where: window.Android ? "Android app" : "Website", version: APP_VERSION }) }).then(x => x.json());
+            where: window.Android ? "Android app" : "Website", version: APP_VERSION, ticket: w.ticket, nonce: w.nonce }) }).then(x => x.json());
+      };
+      try {
+        let r = await attempt();
+        if (r.error === "ticket" || r.error === "early" || r.error === "work") r = await attempt(); // e.g. the server restarted: once more
         if (r.ok) {
           main.replaceChildren(el("section", { class: "card", style: "justify-items:center;text-align:center" },
             el("div", { class: "stars", "aria-hidden": "true" }, [1, 2, 3, 4, 5].map(n => el("span", { class: n <= rating ? "on" : "" }, "★"))),
