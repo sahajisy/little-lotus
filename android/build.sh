@@ -18,7 +18,7 @@ BUNDLETOOL=${BUNDLETOOL:-$HOME/android-build/tools/bundletool.jar}
 rm -rf build && mkdir -p build/classes build/res build/assets/www out
 
 # Web app into assets (test files and tooling left out).
-rsync -a --exclude '_test.html' --exclude 'sw.js' ../app/ build/assets/www/
+rsync -a --exclude '_test.html' --exclude 'sw.js' --exclude '*.php' ../app/ build/assets/www/
 
 # Launcher icons from the web app icon.
 python3 -I - <<'EOF'
