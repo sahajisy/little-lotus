@@ -183,6 +183,8 @@ button { cursor: pointer; }
 .bottombar a { display: grid; justify-items: center; gap: 2px; font-size: .78rem; padding: 4px 12px; border-radius: var(--r-sm); }
 .bottombar svg { width: 24px; height: 24px; fill: currentColor; }
 .bottombar a[aria-current="page"] { color: var(--breeze); }
+.tabs a.nav-app { color: var(--on-breeze); background: var(--breeze); }
+.bottombar a.nav-app { color: var(--breeze); }
 @media (max-width: 720px) {
   .tabs { display: none; }
   .bottombar { display: flex; }
