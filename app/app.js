@@ -263,7 +263,8 @@
           el("div", {},
             el("h3", {}, "Play together"),
             el("p", { class: "muted" }, "A quiz for a class or a group in one room, on one big screen. Players answer on their phones, in teams with cards, or both.")),
-          el("a", { class: "btn ghost", href: "#/group" }, "Play together")))
+          el("a", { class: "btn ghost", href: "#/group" }, "Play together"))),
+      el("p", { class: "feedback-line muted" }, "Enjoying Little Lotus? ", el("a", { href: "#/feedback" }, "Give feedback"))
     );
   }
 
@@ -618,8 +619,76 @@
             .map(([label, href, text]) => el("li", {}, el("span", { class: "muted" }, label + ": "), el("a", { href, "data-ext": true, target: "_blank", rel: "noopener" }, text)))),
         el("p", { class: "muted" }, `Version ${APP_VERSION}`)),
       el("section", { class: "card" },
+        el("div", { class: "spread" },
+          el("div", {}, el("h3", {}, "Feedback"), el("p", { class: "muted" }, "Tell us what you like and what could be better. It goes straight to the developer.")),
+          el("a", { class: "btn accent", href: "#/feedback" }, "Give feedback"))),
+      el("section", { class: "card" },
         el("h3", {}, "Restore Shri Ganesha"),
         el("p", {}, "Little Lotus is part of the Restore Shri Ganesha initiative.")));
+  }
+
+  /* ----------------------------------------------------------- feedback */
+  // Sent to feedback.php on the website, which emails it to the developer. The Android app runs from its
+  // own files, so it sends to the website's address; it needs internet for this one screen.
+  const FEEDBACK_URL = /^https?:$/.test(location.protocol) ? "feedback.php" : "https://little-lotus.sahajbalgunde.com/feedback.php";
+  const RATING_WORDS = ["", "Don't like it", "Not really", "It's okay", "Like it", "Love it"];
+  function renderFeedback() {
+    let rating = 0;
+    const stars = el("div", { class: "star-pick", role: "radiogroup", "aria-label": "Your rating" });
+    const word = el("span", { class: "muted" }, "Tap a star");
+    const drawStars = () => {
+      stars.replaceChildren(...[1, 2, 3, 4, 5].map(n => el("button", {
+        type: "button", role: "radio", "aria-checked": String(n === rating), "aria-label": `${n} star${n > 1 ? "s" : ""}: ${RATING_WORDS[n]}`,
+        class: n <= rating ? "on" : "", onclick: () => { rating = n; drawStars(); word.textContent = RATING_WORDS[n]; status.textContent = ""; }
+      }, "★")));
+    };
+    drawStars();
+    const field = (label, input) => el("label", { class: "field" }, el("span", {}, label), input);
+    const like = el("textarea", { rows: "4", maxlength: "2000" });
+    const better = el("textarea", { rows: "4", maxlength: "2000" });
+    const name = el("input", { type: "text", maxlength: "60", autocomplete: "given-name" });
+    const email = el("input", { type: "email", maxlength: "120", autocomplete: "email", inputmode: "email" });
+    const trap = el("input", { type: "text", name: "company", tabindex: "-1", autocomplete: "off", "aria-hidden": "true", class: "trap" });
+    const status = el("p", { role: "status", class: "feedback-status" });
+    const send = el("button", { class: "btn accent", type: "submit" }, "Send feedback");
+    const form = el("form", { class: "card feedback", onsubmit: async e => {
+      e.preventDefault();
+      if (!rating) { status.textContent = "Please choose a rating first: tap a star."; stars.querySelector("button").focus(); return; }
+      send.disabled = true; status.textContent = "Sending…";
+      try {
+        const r = await fetch(FEEDBACK_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ rating, like: like.value, better: better.value, name: name.value, email: email.value, company: trap.value,
+            where: window.Android ? "Android app" : "Website", version: APP_VERSION }) }).then(x => x.json());
+        if (r.ok) {
+          main.replaceChildren(el("section", { class: "card", style: "justify-items:center;text-align:center" },
+            el("div", { class: "stars", "aria-hidden": "true" }, [1, 2, 3, 4, 5].map(n => el("span", { class: n <= rating ? "on" : "" }, "★"))),
+            el("h1", {}, "Thank you!"),
+            el("p", {}, "Your feedback has been sent. It helps make Little Lotus better for everyone."),
+            el("a", { class: "btn accent", href: "#/play" }, "Back to Play")));
+          window.scrollTo({ top: 0 });
+          return;
+        }
+        status.textContent = { email: "That email address doesn't look right. Check it, or leave it empty.", busy: "You've sent several messages in the last hour. Please try again later." }[r.error]
+          || "Sorry, it couldn't be sent. Please try again in a moment.";
+      } catch (err) {
+        status.textContent = "Couldn't send it. Check your internet connection and try again. Your words are still here.";
+      }
+      send.disabled = false;
+    } },
+      el("div", { class: "field" }, el("span", {}, "How much do you enjoy Little Lotus?"), el("div", { class: "row" }, stars, word)),
+      field("What do you like?", like),
+      field("What should be better? Is anything not working?", better),
+      field("Your name (optional)", name),
+      field("Email (optional, only if you'd like a reply)", email),
+      trap,
+      el("div", { class: "row" }, send),
+      status,
+      el("p", { class: "muted small" }, "Your feedback is emailed to the developer and used only to improve Little Lotus. ",
+        el("a", { href: "https://sahajbalgunde.com/little-lotus-privacy/", "data-ext": "", target: "_blank", rel: "noopener" }, "Privacy policy")));
+    main.replaceChildren(
+      el("section", { class: "intro" }, el("p", { class: "label" }, "Feedback"), el("h1", {}, "Tell us what you think"),
+        el("p", {}, "Little Lotus is a small offering, made with love. Your thoughts help make it better for children and families everywhere.")),
+      form);
   }
 
   function applyTheme() {
@@ -637,7 +706,7 @@
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     const h = location.hash.replace(/^#\/?/, "");
     const [page, ...rest] = h.split("/");
-    const tab = { "": "play", play: "play", quiz: "play", group: "play", talks: "talks", talk: "talks", print: "print", about: "about" }[page] || "play";
+    const tab = { "": "play", play: "play", quiz: "play", group: "play", talks: "talks", talk: "talks", print: "print", about: "about", feedback: "about" }[page] || "play";
     document.querySelectorAll("[data-tab]").forEach(a => { if (a.dataset.tab === tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (page === "quiz") renderQuiz();
     else if (page === "talks") renderTalks(rest[0], rest[1] ? decodeURIComponent(rest[1]) : null);
@@ -645,6 +714,7 @@
     else if (page === "group") window.CQGroup.render(main, rest[0] || "", { state, saveState, agePicker, topicPicker, langPicker, countFor, poolFor });
     else if (page === "print") window.CQPrint.render(main, { state, saveState, agePicker, topicPicker, langPicker, poolFor, AGES, AGE_NAMES });
     else if (page === "about") renderAbout();
+    else if (page === "feedback") renderFeedback();
     else renderPlay();
     if (page !== "talk") window.scrollTo({ top: 0 });
   }
