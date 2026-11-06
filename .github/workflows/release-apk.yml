@@ -1,0 +1,116 @@
+# Builds LittleLotus.apk and attaches it to a GitHub release.
+#
+# Runs when a release is published, or by hand (Actions > Release APK > Run workflow) for an
+# existing release tag. Signs with the app's own key, kept in two repository secrets:
+#   ANDROID_KEYSTORE_B64       the keystore file, base64-encoded (base64 -w0 android/littlelotus.keystore)
+#   ANDROID_KEYSTORE_PASSWORD  its password (the build script's default is "littlelotus")
+# Before uploading, the new APK's signing certificate is compared with the one on the v1.0
+# release, so an APK that would not install over the app people already have is never published.
+name: Release APK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach the APK to (e.g. v1.1)
+        required: true
+        default: v1.1
+      version_code:
+        description: Android versionCode (must be higher than the last release's; 1.0 was 1)
+        required: true
+        default: "2"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-apk
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Work out the version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          CODE_INPUT: ${{ inputs.version_code }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then echo "::error::Tag must look like v1.2"; exit 1; fi
+          name="${TAG#v}"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if ! [[ "$CODE_INPUT" =~ ^[0-9]+$ ]]; then echo "::error::versionCode must be a number"; exit 1; fi
+            code="$CODE_INPUT"
+          else
+            # Releases from v1.1 on: versionCode = major*100 + minor (1.1 -> 101 is higher than 1.0's 1).
+            major="${name%%.*}"; minor="${name#*.}"; minor="${minor%%.*}"
+            code=$(( major * 100 + minor ))
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Building $TAG as versionName $name, versionCode $code"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Check the signing key is available
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ]; then
+            echo "::error::Add the ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASSWORD repository secrets first (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Install the Android build tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil rsync
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+          mkdir -p "$RUNNER_TEMP/tools"
+          curl -fsSL -o "$RUNNER_TEMP/tools/bundletool.jar" https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar
+
+      - name: Build and sign
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/littlelotus.keystore"
+          JAVA_HOME="$JAVA_HOME_17_X64" ANDROID_SDK="$ANDROID_HOME" BUNDLETOOL="$RUNNER_TEMP/tools/bundletool.jar" \
+            KEYSTORE="$RUNNER_TEMP/littlelotus.keystore" KS_PASS="$KS_PASS" \
+            VERSION_CODE="${{ steps.version.outputs.code }}" VERSION_NAME="${{ steps.version.outputs.name }}" \
+            ./android/build.sh
+          rm -f "$RUNNER_TEMP/littlelotus.keystore"
+
+      - name: Check it is signed with the same key as v1.0
+        run: |
+          set -euo pipefail
+          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          gh release download v1.0 --repo "$GITHUB_REPOSITORY" --pattern LittleLotus.apk --dir "$RUNNER_TEMP/v1.0"
+          cert() { "$signer" verify --print-certs "$1" | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}'; }
+          old=$(cert "$RUNNER_TEMP/v1.0/LittleLotus.apk"); new=$(cert android/out/LittleLotus.apk)
+          echo "v1.0 key: $old"; echo "new key:  $new"
+          if [ -z "$old" ] || [ "$old" != "$new" ]; then
+            echo "::error::The new APK is not signed with the same key as v1.0, so it would not install over the app people have. Nothing was uploaded."
+            exit 1
+          fi
+
+      - name: Attach to the release
+        run: |
+          set -euo pipefail
+          sha=$(sha256sum android/out/LittleLotus.apk | awk '{print $1}')
+          gh release upload "$TAG" android/out/LittleLotus.apk --repo "$GITHUB_REPOSITORY" --clobber
+          echo "Attached LittleLotus.apk to $TAG. SHA-256: $sha" >> "$GITHUB_STEP_SUMMARY"
+          echo "SHA-256 of LittleLotus.apk: $sha"
