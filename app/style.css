@@ -460,6 +460,8 @@ a.chip { color: var(--ink); text-decoration: none; }
 .splash p { font: 400 1rem/1.4 "Atkinson Hyperlegible", system-ui, sans-serif; color: #D9D3F2; max-width: 30ch; }
 .splash .initiative { margin-top: 6px; font-size: .9rem; line-height: 1.5; color: #E9C9FF; letter-spacing: .02em; }
 .splash .initiative b { display: inline-block; font: 800 1.25rem/1.2 "Baloo 2", "Trebuchet MS", system-ui, sans-serif; color: #FFE08A; letter-spacing: .03em; }
+.splash .initiative { max-width: none; }
+.splash .initiative b { white-space: nowrap; font-size: clamp(1rem, 5.2vw, 1.25rem); } /* the name stays on one line */
 .splash small { position: absolute; bottom: max(22px, env(safe-area-inset-bottom, 0px)); left: 0; right: 0; font: 400 .8rem/1 "Atkinson Hyperlegible", system-ui, sans-serif; color: #A9A2D6; letter-spacing: .06em; }
 @keyframes glow { to { transform: scale(1.25); opacity: .85; } }
 @keyframes ripple { from { opacity: 0; transform: scaleX(.4); } }
