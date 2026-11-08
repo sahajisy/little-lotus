@@ -623,8 +623,8 @@
           el("div", {}, el("h3", {}, "Feedback"), el("p", { class: "muted" }, "Tell us what you like and what could be better. It goes straight to the developer.")),
           el("a", { class: "btn accent", href: "#/feedback" }, "Give feedback"))),
       el("section", { class: "card" },
-        el("h3", {}, "Restore Shri Ganesha"),
-        el("p", {}, "Little Lotus is part of the Restore Shri Ganesha initiative.")));
+        el("h3", {}, "Project Restore Shri Ganesha"),
+        el("p", {}, "Little Lotus is an initiative of Project Restore Shri Ganesha.")));
   }
 
   /* ----------------------------------------------------------- feedback */
