@@ -33,6 +33,8 @@
   const VTT_REFS = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&nbsp;": "\u00a0", "&lrm;": "\u200e", "&rlm;": "\u200f" };
   const vtt = s => String(s).replace(/&(?:amp|lt|gt|nbsp|lrm|rlm);/g, r => VTT_REFS[r]);
   const main = $("#main");
+  // Fill the page, skipping empty slots (an optional section that isn't there) instead of printing "null".
+  const setMain = (...kids) => main.replaceChildren(...kids.flat().filter(k => k != null && k !== false));
   function el(tag, attrs = {}, ...kids) {
     const n = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
@@ -237,7 +239,7 @@
     const best = store.get("best", {});
     const key = state.topic.kind + "|" + state.topic.name + "|" + state.tier;
     const n = countFor(state.topic, state.tier);
-    main.replaceChildren(
+    setMain(
       el("section", { class: "intro hero" },
         el("div", { class: "intro" },
           el("p", { class: "label" }, HERO[state.tier][0]),
@@ -420,7 +422,7 @@
       card.append(box);
     }
     card.append(reveal);
-    main.replaceChildren(card);
+    setMain(card);
     keyHandler = e => {
       if (!reveal.hidden && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); next(); return; }
       if (reveal.hidden && /^[1-4]$/.test(e.key)) { const b = card.querySelectorAll(".answer")[+e.key - 1]; if (b && !b.disabled) b.click(); }
@@ -458,7 +460,7 @@
     const best = store.get("best", {});
     if (!best[key] || stars > best[key]) { best[key] = stars; store.set("best", best); }
     const missed = quiz.results.filter(r => !r.ok);
-    main.replaceChildren(
+    setMain(
       el("section", { class: "card", style: "justify-items:center;text-align:center" },
         el("p", { class: "label" }, `${quiz.topic.name} · ages ${AGES[quiz.tier]}`),
         el("div", { class: "stars", "aria-label": `${stars} of 3 stars` }, [1, 2, 3].map(s => el("span", { class: s <= stars ? "on" : "" }, "★"))),
@@ -514,7 +516,7 @@
     };
     search.addEventListener("input", draw);
     box.append(el("div", { class: "spread" }, el("h2", {}, name || "All talks"), kindSeg), el("div", { class: "spread" }, el("span", { class: "muted" }, "Language she spoke"), langSeg), groupChips, search, list);
-    main.replaceChildren(
+    setMain(
       el("section", { class: "intro" },
         el("p", { class: "label" }, `${ids.length.toLocaleString()} talks · ` + (talkLang === "all" ? "English, हिंदी, मराठी" : LANG_LABEL[talkLang])),
         el("h1", {}, "Shri Mataji's talks"),
@@ -538,7 +540,7 @@
   }
 
   async function renderTalk(id, at, lang) {
-    if (!D.talks[id]) { main.replaceChildren(el("p", {}, "This talk is not in the collection.")); return; }
+    if (!D.talks[id]) { setMain(el("p", {}, "This talk is not in the collection.")); return; }
     const t = talk(id);
     if (!t.langs.includes(lang)) lang = t.langs[0];
     const original = lang === t.langs[0];
@@ -551,7 +553,7 @@
     const notice = original
       ? "These are the caption lines exactly as they appear in the caption file. Tap a time to hear that moment."
       : `This is the ${{ en: "English", hi: "Hindi", mr: "Marathi" }[lang]} translation from the caption file. Shri Mataji gave this talk in ${{ en: "English", hi: "Hindi", mr: "Marathi" }[t.langs[0]]}; choose ${LANG_LABEL[t.langs[0]]} for her own words.`;
-    main.replaceChildren(
+    setMain(
       el("section", { class: "intro" },
         el("p", { class: "label" }, [niceDate(t.date) || "Date unknown", talkTags(t)].filter(Boolean).join(" · ")),
         el("h1", { style: "font-size:clamp(1.5rem,4vw,2.1rem)" }, t.title),
@@ -600,7 +602,7 @@
     const theme = store.get("theme", "system");
     const themeSeg = el("div", { class: "seg", role: "group", "aria-label": "Colour theme" });
     [["system", "Automatic"], ["light", "Light"], ["dark", "Dark"]].forEach(([k, l]) => themeSeg.append(el("button", { "aria-pressed": String(theme === k), onclick: () => { store.set("theme", k); applyTheme(); renderAbout(); } }, l)));
-    main.replaceChildren(
+    setMain(
       el("section", { class: "intro" }, el("p", { class: "label" }, "About"), el("h1", {}, "Her words, unchanged")),
       el("section", { class: "card" },
         el("p", {}, `Little Lotus is built from the caption files of ${nt.toLocaleString()} talks of Shri Mataji Nirmala Devi, in English, Hindi and Marathi. It holds ${nq.toLocaleString()} questions.`),
@@ -709,7 +711,7 @@
         let r = await attempt();
         if (r.error === "ticket" || r.error === "early" || r.error === "work") r = await attempt(); // e.g. the server restarted: once more
         if (r.ok) {
-          main.replaceChildren(el("section", { class: "card", style: "justify-items:center;text-align:center" },
+          setMain(el("section", { class: "card", style: "justify-items:center;text-align:center" },
             el("div", { class: "stars", "aria-hidden": "true" }, [1, 2, 3, 4, 5].map(n => el("span", { class: n <= rating ? "on" : "" }, "★"))),
             el("h1", {}, "Thank you!"),
             el("p", {}, "Your feedback has been sent. It helps make Little Lotus better for everyone."),
@@ -734,7 +736,7 @@
       status,
       el("p", { class: "muted small" }, "Your feedback is emailed to the developer and used only to improve Little Lotus. ",
         el("a", { href: "https://sahajbalgunde.com/little-lotus-privacy/", "data-ext": "", target: "_blank", rel: "noopener" }, "Privacy policy")));
-    main.replaceChildren(
+    setMain(
       el("section", { class: "intro" }, el("p", { class: "label" }, "Feedback"), el("h1", {}, "Tell us what you think"),
         el("p", {}, "Little Lotus is a small offering, made with love. Your thoughts help make it better for children and families everywhere.")),
       form);
